@@ -2,36 +2,31 @@ module Leaflet.Halogen where
 
 import Prelude
 
-import Control.Monad.Eff (kind Effect)
-import Control.Monad.Aff (delay)
-import Control.Monad.Aff.Class (class MonadAff, liftAff)
-import Control.Monad.Writer (writer)
-
 import CSS (CSS)
 import CSS.Geometry (width, height)
 import CSS.Size (px, pct)
 import CSS.Stylesheet (StyleM(S))
-
+import Control.Monad.Aff (delay)
+import Control.Monad.Aff.Class (class MonadAff, liftAff)
+import Control.Monad.Eff (kind Effect)
+import Control.Monad.Writer (writer)
+import DOM (DOM)
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromJust, maybe)
-import Data.Traversable as F
 import Data.Time.Duration (Milliseconds(..))
+import Data.Traversable as F
 import Data.Tuple (Tuple(..))
-
-import DOM (DOM)
-
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.CSS (style)
 import Halogen.HTML.Properties as HP
-
 import Leaflet.Core as LC
 import Leaflet.Util ((∘))
-
 import Partial.Unsafe (unsafePartial)
 
 type State =
-  { style ∷ CSS
+  { maxBounds ∷ Maybe LC.Bounds
+  , style ∷ CSS
   , view ∷ LC.LatLng
   , zoom ∷ LC.Zoom
   , leaflet ∷ Maybe LC.Leaflet
@@ -45,6 +40,7 @@ data Query a
   | AddLayers (Array LC.Layer) a
   | RemoveLayers (Array LC.Layer) a
   | GetLeaflet (Maybe LC.Leaflet → a)
+  | SetMaxBounds LC.Bounds a
   | SetView LC.LatLng a
   | SetZoom LC.Zoom a
 
@@ -61,7 +57,8 @@ type DSL m = H.ComponentDSL State Query Message m
 
 initialState ∷ Maybe CSS → State
 initialState css =
-  { style: maybe (S (writer (Tuple unit []))) id css
+  { maxBounds: Nothing
+  , style: maybe (S (writer (Tuple unit []))) id css
   , view: unsafePartial fromJust $ LC.mkLatLng (-37.87) 175.457
   , zoom: unsafePartial fromJust $ LC.mkZoom 12
   , leaflet: Nothing
@@ -126,6 +123,11 @@ eval = case _ of
     state ← H.get
     F.for_ state.leaflet $ LC.setView v
     H.modify _{ view = v }
+    pure next
+  SetMaxBounds b next → do
+    state ← H.get
+    F.for_ state.leaflet $ LC.setMaxBounds b
+    H.modify _{ maxBounds = Just b }
     pure next
   SetZoom zoom next → do
     state ← H.get
